@@ -1,90 +1,89 @@
-// Import required modules
-let express = require('express'); // Express.js web framework
-let path = require('path'); // Node.js path module for working with file paths
-let fs = require('fs'); // Node.js file system module for reading files
-let app = express(); // Create an instance of Express
+let express = require('express');
+let path = require('path');
+let fs = require('fs');
+let MongoClient = require('mongodb').MongoClient;
+const mongoose = require('mongoose');let bodyParser = require('body-parser');
+let app = express();
 
-// Middleware to parse URL-encoded and JSON request bodies
-// app.use(bodyParser.urlencoded({
-//   extended: true
-// }));
-// app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
+app.use(bodyParser.json());
 
-// Route for the root path, sends the "index.html" file
 app.get('/', function (req, res) {
-  res.sendFile(path.join(__dirname, "index.html"));
-});
+    res.sendFile(path.join(__dirname, "index.html"));
+  });
 
-// Route for serving profile pictures
 app.get('/profile-picture', function (req, res) {
-  // Read the image file synchronously
   let img = fs.readFileSync(path.join(__dirname, "images/profile-1.jpg"));
-  // Set the response header to indicate the image content type
   res.writeHead(200, {'Content-Type': 'image/jpg' });
-  // Send the image as a binary response
   res.end(img, 'binary');
 });
 
-// // MongoDB connection URL for local and Docker environments
-// let mongoUrlLocal = "mongodb://admin:password@localhost:27017";
-// let mongoUrlDocker = "mongodb://admin:password@mongodb";
+// use when starting application locally
+let mongoUrlLocal = "mongodb://admin:password@localhost:27017";
 
-// // Options to connect to MongoDB to avoid DeprecationWarning
-// let mongoClientOptions = { useNewUrlParser: true, useUnifiedTopology: true } || {};
-// // Database name for the application
-// let databaseName = "my-db";
+// use when starting application as docker container
+let mongoUrlDocker = "mongodb://admin:password@mongodb";
 
-// Route to handle updating the user profile
-// app.post('/update-profile', function (req, res) {
-//   let userObj = req.body; // Extract the user data from the request body
+// pass these options to mongo client connect request to avoid DeprecationWarning for current Server Discovery and Monitoring engine
+let mongoClientOptions = { useNewUrlParser: true, useUnifiedTopology: true };
 
-//   // Connect to MongoDB
-//   MongoClient.connect(mongoUrlLocal, mongoClientOptions, function (err, client) {
-//     if (err) throw err;
+// "user-account" in demo with docker. "my-db" in demo with docker-compose
+let databaseName = "my-db";
 
-//     let db = client.db(databaseName);
-//     userObj['userid'] = 1; // Add a userid property to the user object
+app.post('/update-profile', async function (req, res) {
+  let userObj = req.body;
+  console.log('Received user data:', userObj); // Log the received user data
 
-//     let myquery = { userid: 1 };
-//     let newvalues = { $set: userObj };
+  try {
+    await mongoose.connect(mongoUrlLocal, { useNewUrlParser: true, useUnifiedTopology: true });
 
-//     // Update the user profile in the "users" collection, or insert if it doesn't exist (upsert: true)
-//     db.collection("users").updateOne(myquery, newvalues, { upsert: true }, function(err, res) {
-//       if (err) throw err;
-//       client.close(); // Close the MongoDB connection
-//     });
+    let db = mongoose.connection.db; // Access the database from the connection
+    userObj['userid'] = 1;
 
-//   });
+    let myquery = { userid: 1 };
+    let newvalues = { $set: userObj };
 
-//   // Send the updated user object as a response
-//   res.send(userObj);
-// });
+    const updateResult = await db.collection("users").updateOne(myquery, newvalues, { upsert: true });
 
-// Route to retrieve the user's profile
-// app.get('/get-profile', function (req, res) {
-//   let response = {}; // Initialize an empty object to store the response
+    console.log("Update result:", updateResult);
+    
+    // Log the updated user data
+    console.log('Updated user data:', userObj);
+    
+    mongoose.connection.close(); // Close the connection
 
-//   // Connect to MongoDB
-//   MongoClient.connect(mongoUrlLocal, mongoClientOptions, function (err, client) {
-//     if (err) throw err;
+    // Send response
+    res.status(200).send(userObj);
+  } catch (error) {
+    console.log("Database connection error:", error);
+    res.status(500).send('Database connection error');
+  }
+});
 
-//     let db = client.db(databaseName);
 
-//     let myquery = { userid: 1 }; // Query to find the user with userid 1
+app.get('/get-profile', function (req, res) {
+  let response = {};
+  // Connect to the db
+  mongoose.connect(mongoUrlLocal, mongoClientOptions, function (err, client) {
+    if (err) throw err;
 
-//     // Find the user in the "users" collection and store the result in the response object
-//     db.collection("users").findOne(myquery, function (err, result) {
-//       if (err) throw err;
-//       response = result; // Store the result in the response object
-//       client.close(); // Close the MongoDB connection
+    let db = client.db(databaseName);
 
-//       // Send the response object as the API response (empty object if no user found)
-//       res.send(response ? response : {});
-//     });
-//   });
-// });
+    let myquery = { userid: 1 };
 
-// Start the Express server and listen on port 3000
+    db.collection("users").findOne(myquery, function (err, result) {
+      if (err) throw err;
+      response = result;
+      client.close();
+
+      // Send response
+      res.send(response ? response : {});
+    });
+  });
+});
+
 app.listen(3000, function () {
   console.log("app listening on port 3000!");
 });
