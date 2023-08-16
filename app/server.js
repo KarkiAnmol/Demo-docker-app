@@ -32,7 +32,7 @@ let mongoClientOptions = { useNewUrlParser: true, useUnifiedTopology: true };
 // "user-account" in demo with docker. "my-db" in demo with docker-compose
 let databaseName = "my-db";
 
-app.post('/update-profile', async function (req, res) {
+app.post('/update-profile', async function (req, res) { 
   let userObj = req.body;
   console.log('Received user data:', userObj); // Log the received user data
 
